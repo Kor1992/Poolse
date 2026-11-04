@@ -2,31 +2,20 @@ package monitor
 
 import (
 	"context"
-	"fmt"
 	"net/http"
 	"sync"
 	"time"
+
+	"pulse/internal/domain"
 )
 
-type CheckResult struct {
-	URL        string
-	StatusCode int
-	Duration   time.Duration
-	IsUp       bool
-	Error      string
-	CheckedAt  time.Time
-}
-
-func (r *CheckResult) String() string {
-	return fmt.Sprintf(
-		"URL: %s | UP: %t | Status: %d | Duration: %s | Error: %s",
-		r.URL, r.IsUp, r.StatusCode, r.Duration, r.Error,
-	)
-}
-
-func checkWebsite(ctx context.Context, url string, client *http.Client) CheckResult {
-	result := CheckResult{URL: url, CheckedAt: time.Now()}
-	request, err := http.NewRequestWithContext(ctx, "GET", url, nil)
+func checkWebsite(ctx context.Context, website domain.Website, client *http.Client) domain.CheckResult {
+	result := domain.CheckResult{
+		WebsiteID: website.ID,
+		URL:       website.URL,
+		CheckedAt: time.Now(),
+	}
+	request, err := http.NewRequestWithContext(ctx, "GET", website.URL, nil)
 
 	if err != nil {
 		result.Error = err.Error()
@@ -50,21 +39,21 @@ func checkWebsite(ctx context.Context, url string, client *http.Client) CheckRes
 
 }
 
-func checkAll(ctx context.Context, urls []string, maxConcurrent int, client *http.Client) []CheckResult {
+func checkAll(ctx context.Context, websites []domain.Website, maxConcurrent int, client *http.Client) []domain.CheckResult {
 	if maxConcurrent <= 0 {
 		return nil
 	}
 
-	workers := min(maxConcurrent, len(urls))
+	workers := min(maxConcurrent, len(websites))
 
-	urlsChan := make(chan string, len(urls))
-	results := make([]CheckResult, 0, len(urls))
+	websitesChan := make(chan domain.Website, len(websites))
+	results := make([]domain.CheckResult, 0, len(websites))
 	var mx sync.Mutex
 
 	go func() {
-		defer close(urlsChan)
-		for _, url := range urls {
-			urlsChan <- url
+		defer close(websitesChan)
+		for _, website := range websites {
+			websitesChan <- website
 		}
 	}()
 	var wg sync.WaitGroup
@@ -76,14 +65,14 @@ func checkAll(ctx context.Context, urls []string, maxConcurrent int, client *htt
 				select {
 				case <-ctx.Done():
 					return
-				case url, ok := <-urlsChan:
+				case website, ok := <-websitesChan:
 					if !ok {
 						return
 					}
 					if ctx.Err() != nil {
 						return
 					}
-					result := checkWebsite(ctx, url, client)
+					result := checkWebsite(ctx, website, client)
 					mx.Lock()
 					results = append(results, result)
 					mx.Unlock()
