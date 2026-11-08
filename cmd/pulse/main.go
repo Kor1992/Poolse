@@ -11,10 +11,10 @@ import (
 	"syscall"
 	"time"
 
-	service "pulse/internal"
 	"pulse/internal/handler"
 	"pulse/internal/monitor"
 	"pulse/internal/repository/postgres"
+	"pulse/internal/service"
 )
 
 func main() {

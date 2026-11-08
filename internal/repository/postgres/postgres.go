@@ -248,3 +248,38 @@ func (r *PostgresRepository) DeleteWebsite(
 
 	return nil
 }
+
+func (r *PostgresRepository) GetWebsiteStats(
+	ctx context.Context,
+	websiteID int64,
+) (domain.WebsiteStats, error) {
+
+	query := `
+	SELECT
+    COUNT(*) AS total_checks,
+    COUNT(*) FILTER (WHERE is_up = TRUE) AS successful_checks,
+    COUNT(*) FILTER (WHERE is_up = FALSE) AS failed_checks,
+    COALESCE(AVG(duration_ms), 0) AS avg_response_ms
+	FROM checks
+	WHERE website_id = $1
+ 	AND checked_at >= NOW() - INTERVAL '24 hours';
+	`
+
+	var website domain.WebsiteStats
+
+	err := r.pool.QueryRow(ctx, query, websiteID).Scan(&website.TotalChecks,
+		&website.SuccessfulChecks,
+		&website.FailedChecks,
+		&website.AvgResponseMs,
+	)
+	if err != nil {
+		return domain.WebsiteStats{}, fmt.Errorf(
+			"get website %d stats: %w",
+			websiteID,
+			err,
+		)
+	}
+
+	website.WebsiteID = websiteID
+	return website, nil
+}

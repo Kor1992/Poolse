@@ -5,9 +5,9 @@ import (
 	"encoding/json"
 	"errors"
 	"net/http"
-	service "pulse/internal"
 	"pulse/internal/domain"
 	"pulse/internal/repository"
+	"pulse/internal/service"
 	"strconv"
 	"time"
 )

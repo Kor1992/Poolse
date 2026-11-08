@@ -17,4 +17,5 @@ type WebsiteRepository interface {
 	GetWebsiteByID(ctx context.Context, id int64) (domain.Website, error)
 	UpdateWebsiteActive(ctx context.Context, id int64, isActive bool) error
 	DeleteWebsite(ctx context.Context, id int64) error
+	GetWebsiteStats(ctx context.Context, websiteID int64) (domain.WebsiteStats, error)
 }
