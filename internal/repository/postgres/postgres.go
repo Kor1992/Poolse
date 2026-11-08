@@ -254,6 +254,23 @@ func (r *PostgresRepository) GetWebsiteStats(
 	websiteID int64,
 ) (domain.WebsiteStats, error) {
 
+	var exists bool
+
+	err := r.pool.QueryRow(ctx, `
+    SELECT EXISTS(
+        SELECT 1 FROM websites WHERE id = $1
+    )
+`, websiteID).Scan(&exists)
+
+	if err != nil {
+		return domain.WebsiteStats{}, fmt.Errorf(
+			"check website existence: %w", err,
+		)
+	}
+	if !exists {
+		return domain.WebsiteStats{}, repository.ErrNotFound
+	}
+
 	query := `
 	SELECT
     COUNT(*) AS total_checks,
@@ -267,7 +284,7 @@ func (r *PostgresRepository) GetWebsiteStats(
 
 	var website domain.WebsiteStats
 
-	err := r.pool.QueryRow(ctx, query, websiteID).Scan(&website.TotalChecks,
+	err = r.pool.QueryRow(ctx, query, websiteID).Scan(&website.TotalChecks,
 		&website.SuccessfulChecks,
 		&website.FailedChecks,
 		&website.AvgResponseMs,

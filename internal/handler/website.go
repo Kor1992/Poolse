@@ -21,16 +21,27 @@ type WebsiteService interface {
 	DeleteWebsite(ctx context.Context, id int64) error
 }
 
+type StatsService interface {
+	GetWebsiteStats(ctx context.Context, websiteID int64) (domain.WebsiteStats, error)
+}
+
 type UpdateWebsiteRequest struct {
 	IsActive *bool `json:"is_active"`
 }
 
 type WebsiteHandler struct {
-	service WebsiteService
+	service      WebsiteService
+	statsService StatsService
 }
 
-func NewWebHandler(servise WebsiteService) *WebsiteHandler {
-	return &WebsiteHandler{service: servise}
+func NewWebHandler(
+	websiteService WebsiteService,
+	statsService StatsService,
+) *WebsiteHandler {
+	return &WebsiteHandler{
+		service:      websiteService,
+		statsService: statsService,
+	}
 }
 
 func (h *WebsiteHandler) CreateWebsite(
@@ -249,4 +260,55 @@ func (h *WebsiteHandler) DeleteWebsite(
 	}
 
 	w.WriteHeader(http.StatusNoContent)
+}
+
+type WebsiteStatsResponse struct {
+	WebsiteID        int64   `json:"website_id"`
+	TotalChecks      int64   `json:"total_checks"`
+	SuccessfulChecks int64   `json:"successful_checks"`
+	FailedChecks     int64   `json:"failed_checks"`
+	AvgResponseMs    float64 `json:"avg_response_ms"`
+	UptimePercent    float64 `json:"uptime_percent"`
+}
+
+func toWebsiteStatsResponse(stats domain.WebsiteStats) WebsiteStatsResponse {
+	return WebsiteStatsResponse{
+		WebsiteID:        stats.WebsiteID,
+		TotalChecks:      stats.TotalChecks,
+		SuccessfulChecks: stats.SuccessfulChecks,
+		FailedChecks:     stats.FailedChecks,
+		AvgResponseMs:    stats.AvgResponseMs,
+		UptimePercent:    stats.UptimePercent,
+	}
+}
+
+func (h *WebsiteHandler) GetWebsiteStats(
+	w http.ResponseWriter,
+	r *http.Request,
+) {
+	idStr := r.PathValue("id")
+	id, err := strconv.ParseInt(idStr, 10, 64)
+	if err != nil {
+		http.Error(w, "id parse error", http.StatusBadRequest)
+		return
+	}
+	status, err := h.statsService.GetWebsiteStats(r.Context(), id)
+	if err != nil {
+		if errors.Is(err, service.ErrInvalidID) {
+			http.Error(w, "invalid website id", http.StatusBadRequest)
+			return
+		}
+		if errors.Is(err, repository.ErrNotFound) {
+			http.Error(w, "website not found", http.StatusNotFound)
+			return
+		}
+		http.Error(w, "server error", http.StatusInternalServerError)
+		return
+	}
+
+	stats := toWebsiteStatsResponse(status)
+
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	json.NewEncoder(w).Encode(stats)
 }

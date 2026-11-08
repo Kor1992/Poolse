@@ -44,7 +44,8 @@ func main() {
 		monitor.RunMonitor(ctx, repo, 30*time.Second, 5, client)
 	}()
 	websiteService := service.NewWebsiteService(repo)
-	websiteHandler := handler.NewWebHandler(websiteService)
+	statsService := service.NewStatsService(repo)
+	websiteHandler := handler.NewWebHandler(websiteService, statsService)
 
 	mux := http.NewServeMux()
 
@@ -54,6 +55,7 @@ func main() {
 	mux.HandleFunc("GET /api/websites/{id}", websiteHandler.GetWebsiteByID)
 	mux.HandleFunc("PATCH /api/websites/{id}", websiteHandler.UpdateWebsiteActive)
 	mux.HandleFunc("DELETE /api/websites/{id}", websiteHandler.DeleteWebsite)
+	mux.HandleFunc("GET /api/websites/{id}/stats", websiteHandler.GetWebsiteStats)
 
 	server := &http.Server{
 		Addr:    ":8080",
